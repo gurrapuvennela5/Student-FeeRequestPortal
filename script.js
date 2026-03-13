@@ -1,4 +1,4 @@
-const BASE_URL = "https://script.google.com/macros/s/AKfycbwImuMkCbnKm1BrWOPfH_4skVaJgGz9VIuRoJQI3f7vUU2zZf8MnQ4PFLfYhGfkUQmD/exec";
+const BASE_URL = "https://script.google.com/macros/s/AKfycbwRvNLqitHvxdOP6cyZhkp01Q0Kk4x6iKvWv0OeuGhsOccw8Y58JF9B4XpQx7Zav2xS/exec";
 
 let groupMembers = [];
 
@@ -144,11 +144,21 @@ const paymentData = {
     "DOST Counselling"
   ],
 
+  "Transportation Charges": [
+  "Daily Travel",
+  "Bus Pass",
+  "Vacation Travel",
+  "Volunteering Travel",
+  "Contest Travel",
+  "Others"
+],
+
   "Post-Graduate Coaching": [
     "GATE Coaching",
     "NEET PG Coaching",
     "Study Material / Marrow"
   ]
+  
 };
 
 /* ================= LOAD CATEGORIES ================= */
@@ -268,6 +278,9 @@ function fetchMainStudent() {
     return;
   }
 
+  // SHOW LOADER
+  document.getElementById("overlayLoader").style.display = "flex";
+
   fetch(`${BASE_URL}?mssid=${encodeURIComponent(mssid)}`)
     .then(res => res.json())
     .then(data => {
@@ -283,6 +296,9 @@ function fetchMainStudent() {
     .catch(err => {
       console.log("Fetch error:", err);
       alert("Error fetching student details");
+    })
+    .finally(() => {
+      document.getElementById("overlayLoader").style.display = "none";
     });
 }
 
@@ -296,6 +312,9 @@ function fetchGroupMember(i) {
     alert("Enter MSS ID");
     return;
   }
+
+  // SHOW LOADER
+  document.getElementById("overlayLoader").style.display = "flex";
 
   fetch(`${BASE_URL}?mssid=${encodeURIComponent(mssid)}`)
     .then(res => res.json())
@@ -321,9 +340,11 @@ function fetchGroupMember(i) {
     .catch(err => {
       console.log("Fetch error:", err);
       alert("Error fetching student details");
+    })
+    .finally(() => {
+      document.getElementById("overlayLoader").style.display = "none";
     });
 }
-
 /* ================= SUBMIT REQUEST ================= */
 /* ================= SUBMIT REQUEST ================= */
 
@@ -351,40 +372,58 @@ function submitRequest() {
   }
 
   // ================= GROUP VALIDATION =================
-  if (type === "Group") {
+ if (type === "Group") {
 
-    const count = parseInt(document.getElementById("groupCount").value);
+  const count = parseInt(document.getElementById("groupCount").value);
 
-    if (!count || count <= 0) {
-      alert("Enter group member count");
+  if (!count || count <= 0) {
+    alert("Enter group member count");
+    return;
+  }
+
+  // rebuild groupMembers fresh before submit
+  groupMembers = [];
+
+  for (let i = 0; i < count; i++) {
+
+    const mssid = document.getElementById(`gm_mssid_${i}`).value.trim();
+    const year = document.getElementById(`gm_year_${i}`).value.trim();
+    const amount = document.getElementById(`gm_amount_${i}`).value.trim();
+    const name = document.getElementById(`gm_name_${i}`).value.trim();
+    const college = document.getElementById(`gm_college_${i}`).value.trim();
+
+    if (!mssid || !year || !amount || !name || !college) {
+      alert(`Fill all details for Group Member ${i + 1}`);
       return;
     }
 
-    for (let i = 0; i < count; i++) {
-
-      if (!document.getElementById(`gm_mssid_${i}`).value.trim() ||
-          !document.getElementById(`gm_year_${i}`).value.trim() ||
-          !document.getElementById(`gm_amount_${i}`).value.trim() ||
-          !document.getElementById(`gm_name_${i}`).value.trim() ||
-          !document.getElementById(`gm_college_${i}`).value.trim()) {
-
-        alert(`Fill all details for Group Member ${i + 1}`);
-        return;
-      }
-    }
+    groupMembers.push({
+      mssid: mssid,
+      year: year,
+      amount: amount,
+      name: name,
+      college: college
+    });
   }
+}
 
   // ================= PAYMENT VALIDATION =================
-  if (!val("category") ||
-      !val("subCategory") ||
-      !val("paymentMode") ||
-      !val("details") ||
-      !val("dueDate") ||
-      !val("attachment")) {
+  // ================= PAYMENT VALIDATION =================
+if (!val("category") ||
+    !val("subCategory") ||
+    !val("paymentMode") ||
+    !val("details") ||
+    !val("dueDate")) {
 
-    alert("Fill all payment details");
-    return;
-  }
+  alert("Fill all payment details");
+  return;
+}
+
+// 🔹 Attachment Mandatory for BOTH request types
+if (!val("attachment")) {
+  alert("Please attach the required file before submitting.");
+  return;
+}
 
   // ================= LOADING =================
   document.getElementById("submitBtn").disabled = true;
@@ -421,4 +460,3 @@ function submitRequest() {
    document.getElementById("overlayLoader").style.display = "none";
     });
 }
-
