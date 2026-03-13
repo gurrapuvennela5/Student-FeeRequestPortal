@@ -1,5 +1,5 @@
 const ADMIN_PASSWORD = "medha@admin";
-const BASE_URL = "https://script.google.com/macros/s/AKfycbwImuMkCbnKm1BrWOPfH_4skVaJgGz9VIuRoJQI3f7vUU2zZf8MnQ4PFLfYhGfkUQmD/exec";
+const BASE_URL = "https://script.google.com/macros/s/AKfycbwRvNLqitHvxdOP6cyZhkp01Q0Kk4x6iKvWv0OeuGhsOccw8Y58JF9B4XpQx7Zav2xS/exec";
 
 const REQUEST_SHEET_ID = "18TJg7T4Stf8FWWfhNyOfNJztDsLy20jSVNR-SgliOIk";
 const STUDENT_MASTER_SHEET_ID = "152IsL4_2lLLn4qHGkMLy2LxkJ27c3FzLZlOocOW-DTM";
@@ -90,4 +90,3 @@ Then download as Excel.`
     `https://docs.google.com/spreadsheets/d/${REQUEST_SHEET_ID}/edit`
   );
 }
-
