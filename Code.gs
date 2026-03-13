@@ -5,11 +5,16 @@
 /***********************
  CONFIGURATION
 ************************/
-const ADMIN_EMAIL = "mssc1@medhatrust.org";
-const STUDENT_SHEET_ID = "1eEiktXg_yZCac0EZk9ZtWzonQtpNTGKJ4DoEGyobybw";
-const REQUEST_SHEET_ID = "1J3BqxjpEw2ZhNo3DY_-5TNkaBKNrIgKqLEPXuxa4_eY";
+const ADMIN_EMAILS = [
+  "mssc1@medhatrust.org",
+  "mssc2@medhatrust.org",
+  "mssc4@medhatrust.org"
+];
+const STUDENT_SHEET_ID = "152IsL4_2lLLn4qHGkMLy2LxkJ27c3FzLZlOocOW-DTM";
+const REQUEST_SHEET_ID = "18TJg7T4Stf8FWWfhNyOfNJztDsLy20jSVNR-SgliOIk";
 const STUDENT_SHEET_NAME = "Student_DB";
 const REQUEST_SHEET_NAME = "Requests_DB";
+
 
 /***********************
  JSON HELPER
@@ -98,23 +103,27 @@ function doPost(e) {
   const mainAmount = e.parameter.amount;
 
   // 🔹 STORE MAIN REQUEST (Individual or Requesting Student)
+  // ================= INDIVIDUAL =================
+if (e.parameter.requestType === "Individual") {
+
   sh.appendRow([
-    reqId,                     // 0
-    now,                       // 1
-    e.parameter.mssid,         // 2
-    e.parameter.name,          // 3
-    e.parameter.year,          // 4
-    e.parameter.college,       // 5
-    requestType,               // 6
-    requestType === "Individual" ? mainAmount : "", // 7
-    e.parameter.category,      // 8
-    e.parameter.subCategory,   // 9
-    e.parameter.paymentMode,   // 10
-    e.parameter.details,       // 11
-    e.parameter.dueDate,       // 12
-    e.parameter.attachmentLink || "", // 13
-    "Pending"                  // 14
+    reqId,
+    now,
+    e.parameter.mssid,
+    e.parameter.name,
+    e.parameter.year,
+    e.parameter.college,
+    "Individual",
+    e.parameter.amount,
+    e.parameter.category,
+    e.parameter.subCategory,
+    e.parameter.paymentMode,
+    e.parameter.details,
+    e.parameter.dueDate,
+    e.parameter.attachmentLink || "",
+    "Pending"
   ]);
+}
 
   // 🔹 GROUP MEMBERS
   let members = [];
@@ -127,25 +136,29 @@ function doPost(e) {
       members = [];
     }
 
-    members.forEach(m => {
-      sh.appendRow([
-        reqId,
-        now,
-        m.mssid,
-        m.name,
-        m.year,
-        m.college,
-        "Group",
-        m.amount || "",  // ✅ separate amount
-        e.parameter.category,
-        e.parameter.subCategory,
-        e.parameter.paymentMode,
-        e.parameter.details,
-        e.parameter.dueDate,
-        "",
-        "Pending"
-      ]);
-    });
+   members.forEach(m => {
+
+  const amount = m.amount ? m.amount : "";
+
+  sh.appendRow([
+    reqId,
+    now,
+    m.mssid,
+    m.name,
+    m.year,
+    m.college,
+    "Group",
+    amount,
+    e.parameter.category,
+    e.parameter.subCategory,
+    e.parameter.paymentMode,
+    e.parameter.details,
+    e.parameter.dueDate,
+    e.parameter.attachmentLink || "",
+    "Pending"
+  ]);
+
+});
   }
 
   // 🔹 EMAIL
@@ -173,24 +186,44 @@ function doPost(e) {
 ************************/
 function generateRequestId() {
 
-  const sh = SpreadsheetApp
-    .openById(REQUEST_SHEET_ID)
-    .getSheetByName(REQUEST_SHEET_NAME);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000); // wait up to 30 seconds if another request is generating an ID
 
-  const month = Utilities.formatDate(
-    new Date(),
-    Session.getScriptTimeZone(),
-    "yyyyMMM"
-  );
+  try {
 
-  const ids = sh.getRange(2, 1, sh.getLastRow()).getValues();
-  const count = ids
-    .filter(r => r[0] && String(r[0]).includes(month))
-    .length + 1;
+    const sh = SpreadsheetApp
+      .openById(REQUEST_SHEET_ID)
+      .getSheetByName(REQUEST_SHEET_NAME);
 
-  return `MSS-${month}-${String(count).padStart(2, "0")}`;
+    const month = Utilities.formatDate(
+      new Date(),
+      Session.getScriptTimeZone(),
+      "yyyyMMM"
+    );
+
+    const lastRow = sh.getLastRow();
+
+    // first request in sheet
+    if (lastRow < 2) {
+      return `MSS-${month}-01`;
+    }
+
+    const lastId = sh.getRange(lastRow, 1).getValue();
+
+    // if month changed, restart numbering
+    if (!lastId || !String(lastId).includes(month)) {
+      return `MSS-${month}-01`;
+    }
+
+    const lastNumber = parseInt(lastId.split("-")[2], 10);
+    const newNumber = lastNumber + 1;
+
+    return `MSS-${month}-${String(newNumber).padStart(2, "0")}`;
+
+  } finally {
+    lock.releaseLock();
+  }
 }
-
 /***********************
  EMAIL NOTIFICATION
 ************************/
@@ -198,7 +231,17 @@ function sendAdminNotification(d) {
 
   try {
 
-    const groupSection = d.groupMembers.length
+    const isIndividual = d.requestType === "Individual";
+
+    const studentSection = isIndividual ? `
+        <p><b>Name:</b> ${d.name}</p>
+        <p><b>MSS ID:</b> ${d.mssid}</p>
+        <p><b>College:</b> ${d.college}</p>
+        <p><b>Year:</b> ${d.year}</p>
+        <p><b>Amount:</b> ₹${d.amount}</p>
+    ` : "";
+
+    const groupSection = (!isIndividual && d.groupMembers.length)
       ? `
         <p><b>Group Members:</b></p>
         <ul>
@@ -213,25 +256,23 @@ function sendAdminNotification(d) {
       <div style="font-family: Arial;">
         <h2>📋 New Student Request</h2>
         <p><b>Request ID:</b> ${d.reqId}</p>
-        <p><b>Name:</b> ${d.name}</p>
-        <p><b>MSS ID:</b> ${d.mssid}</p>
-        <p><b>College:</b> ${d.college}</p>
-        ${d.requestType === "Individual"
-          ? `<p><b>Amount:</b> ₹${d.amount}</p>`
-          : ""}
+
+        ${studentSection}
+
         <p><b>Category:</b> ${d.category}</p>
         <p><b>Sub-Category:</b> ${d.subCategory}</p>
         <p><b>Due Date:</b> ${d.dueDate}</p>
         ${d.details ? `<p><b>Details:</b> ${d.details}</p>` : ""}
+
         ${groupSection}
       </div>
     `;
 
-    MailApp.sendEmail({
-      to: ADMIN_EMAIL,
-      subject: `🔔 New Request ${d.reqId}`,
-      htmlBody: html
-    });
+   MailApp.sendEmail({
+  to: ADMIN_EMAILS.join(","),
+  subject: `🔔 New Request ${d.reqId}`,
+  htmlBody: html
+});
 
   } catch (err) {
     Logger.log("Email error: " + err);
